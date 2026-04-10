@@ -1,9 +1,13 @@
 import { useEffect, useRef } from 'react'
 import * as THREE from 'three'
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js'
+import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls.js'
 
 /** Served from public/ — exact path */
 const ZOMBIE_IDLE_URL = '/assets/zombie/Zombie Idle.fbx'
+
+const EYE_HEIGHT = 1.6
+const MOVE_SPEED = 10
 
 export default function GameScene() {
   const mountRef = useRef(null)
@@ -21,7 +25,7 @@ export default function GameScene() {
       0.1,
       500
     )
-    camera.position.set(0, 1.6, 4)
+    camera.position.set(0, EYE_HEIGHT, 4)
     camera.lookAt(0, 0.9, 0)
 
     const renderer = new THREE.WebGLRenderer({ antialias: true })
@@ -29,6 +33,8 @@ export default function GameScene() {
     renderer.setSize(mount.clientWidth, mount.clientHeight)
     renderer.shadowMap.enabled = true
     mount.appendChild(renderer.domElement)
+
+    const controls = new PointerLockControls(camera, renderer.domElement)
 
     scene.add(new THREE.AmbientLight(0xffffff, 0.45))
     const sun = new THREE.DirectionalLight(0xffffff, 1.1)
@@ -47,6 +53,59 @@ export default function GameScene() {
     const clock = new THREE.Clock()
     let mixer = null
     let rafId = 0
+
+    const keys = {
+      forward: false,
+      back: false,
+      left: false,
+      right: false,
+    }
+
+    function onKeyDown(e) {
+      switch (e.code) {
+        case 'KeyW':
+          keys.forward = true
+          break
+        case 'KeyS':
+          keys.back = true
+          break
+        case 'KeyA':
+          keys.left = true
+          break
+        case 'KeyD':
+          keys.right = true
+          break
+        default:
+          break
+      }
+    }
+
+    function onKeyUp(e) {
+      switch (e.code) {
+        case 'KeyW':
+          keys.forward = false
+          break
+        case 'KeyS':
+          keys.back = false
+          break
+        case 'KeyA':
+          keys.left = false
+          break
+        case 'KeyD':
+          keys.right = false
+          break
+        default:
+          break
+      }
+    }
+
+    function onClick() {
+      controls.lock()
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    window.addEventListener('keyup', onKeyUp)
+    renderer.domElement.addEventListener('click', onClick)
 
     const loader = new FBXLoader()
     loader.load(
@@ -96,6 +155,18 @@ export default function GameScene() {
     function tick() {
       rafId = requestAnimationFrame(tick)
       const dt = clock.getDelta()
+
+      if (controls.isLocked) {
+        if (keys.forward) controls.moveForward(MOVE_SPEED * dt)
+        if (keys.back) controls.moveForward(-MOVE_SPEED * dt)
+        if (keys.left) controls.moveRight(-MOVE_SPEED * dt)
+        if (keys.right) controls.moveRight(MOVE_SPEED * dt)
+      }
+
+      if (camera.position.y < EYE_HEIGHT) {
+        camera.position.y = EYE_HEIGHT
+      }
+
       if (mixer) mixer.update(dt)
       renderer.render(scene, camera)
     }
@@ -103,6 +174,10 @@ export default function GameScene() {
 
     return () => {
       window.removeEventListener('resize', onResize)
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('keyup', onKeyUp)
+      renderer.domElement.removeEventListener('click', onClick)
+      controls.dispose()
       cancelAnimationFrame(rafId)
       if (mixer) mixer.stopAllAction()
 
